@@ -9,7 +9,7 @@ int main(int argc, char** argv)
 {
     if (argc < 5)
     {
-        std::cout << "<in dcm template file> <in json file> <in dcm file> <out dcm file>";
+        std::cout << "<in dcm template file> <in json file> <in dcm file> <out dcm file>" << std::endl;
         return 0;
     }
 

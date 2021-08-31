@@ -61,7 +61,7 @@ std::string DcmParser::getInstanceNumber()
     return findString(DCM_InstanceNumber, m_dataset);
 }
 
-std::string DcmParser::findString(DcmTagKey& tagKey, DcmItem* dcm)
+std::string DcmParser::findString(const DcmTagKey& tagKey, DcmItem* dcm)
 {
     if (dcm == nullptr)
     {

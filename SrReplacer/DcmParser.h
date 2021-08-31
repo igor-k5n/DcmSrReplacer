@@ -24,7 +24,7 @@ public:
 
 private:
 
-    std::string findString(DcmTagKey& , DcmItem *);
+    std::string findString(const DcmTagKey& , DcmItem *);
 
     std::unique_ptr<DcmFileFormat> m_dcm;
     DcmMetaInfo* m_metaInfo = nullptr;
