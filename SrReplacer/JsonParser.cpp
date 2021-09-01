@@ -15,8 +15,10 @@ bool JsonParser::loadJson(const std::string& file)
     catch (std::exception& e)
     {
         PRINT_ERROR("load file:", file, e.what());
-        return -1;
+        return false;
     }
+
+    return true;
 }
 
 JsonParser::TPolyline JsonParser::getPolyline()
