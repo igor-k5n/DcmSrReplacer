@@ -1,24 +1,23 @@
 #include "DebugLog.h"
 
 #include "SRMaker.h"
-
-#include "JsonParser.h"
+#include "TextFileParser.h"
 #include "DcmParser.h"
 
 int main(int argc, char** argv)
 {
     if (argc < 5)
     {
-        std::cout << "<in dcm template file> <in json file> <in dcm file> <out dcm file>" << std::endl;
+        std::cout << "<in dcm template file> <in text file> <in dcm file> <out dcm file>" << std::endl;
         return 0;
     }
 
     SRMaker srMaker;
     DcmParser dcmParser;
-    JsonParser jsonParser;
+    TextFileParser textParser;
 
     std::string inTemplateFile = argv[1];
-    std::string inJsonFile = argv[2];
+    std::string inTextFile = argv[2];
     std::string inDcmFile = argv[3];
     std::string outDcmFile = argv[4];
 
@@ -34,14 +33,14 @@ int main(int argc, char** argv)
         return -1;
     }
 
-    if (!jsonParser.loadJson(inJsonFile))
+    if (!textParser.load(inTextFile))
     {
         PRINT_ERROR("load json file");
         return -1;
     }
 
-    auto polyline = jsonParser.getPolyline();
-    if (polyline.empty())
+    auto polylines = textParser.getPolyline();
+    if (polylines.empty())
     {
         PRINT_ERROR("polyline is empty in json");
         return -1;
@@ -89,7 +88,7 @@ int main(int argc, char** argv)
         return -1;
     }
 
-    if (!srMaker.replacePolyline(polyline))
+    if (!srMaker.replacePolyline(polylines))
     {
         PRINT_ERROR("replace polyline");
         return -1;

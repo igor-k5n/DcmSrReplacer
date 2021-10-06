@@ -3,26 +3,23 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <unordered_map>
+#include <random>
 
-#include "dcmtk/config/osconfig.h"
-#include "dcmtk/dcmsr/dsrdoc.h"       /* for main interface class DSRDocument */
+#include "DcmFile.h"
 
-#include "dcmtk/dcmdata/dctk.h"
-
-#include "dcmtk/ofstd/ofstream.h"
-#include "dcmtk/ofstd/ofconapp.h"
-
-class SRMaker
+class SRMaker : public DcmFile
 {
+    using base = DcmFile;
 
 public:
 
-    SRMaker() = default;
+    SRMaker();
 
     bool loadTemplate(const std::string& fileTemplate);
     bool saveFile(const std::string& file);
 
-    bool replacePolyline(const std::vector<float> &);
+    bool replacePolyline(const std::unordered_map<std::string, std::vector<float>> &);
     bool replaceStudyInstanceUid(const std::string&);
     bool replaceSeriesInstanceUid(const std::string&);
     bool replacePatientId(const std::string&);
@@ -32,8 +29,10 @@ public:
     bool replaceInstanceNumber(const std::string&);
 private:
 
-    template<typename T>
-    T* search(const DcmTagKey&, DcmItem* );
+    using TSequences = std::vector<DcmSequenceOfItems*>;
+
+    TSequences searchSequenceInSequence(const std::string& valueType, const std::string& codeValue, DcmSequenceOfItems*);
+    DcmItem* searchItemInSequence(const std::string& valueType, const std::string& codeValue, DcmSequenceOfItems*);
 
     template<typename T, typename R>
     bool replace(const R&, const DcmTagKey& , DcmItem* );
@@ -42,8 +41,10 @@ private:
     bool replaceValue(DcmElement* el, const std::string& value);
     bool replaceValue(DcmElement* el, const uint32_t& value);
 
-    std::unique_ptr<DcmFileFormat> m_dcmTemplate;
-    DcmMetaInfo* m_metaInfo = nullptr;
-    DcmDataset* m_dataset = nullptr;
-    DcmStack m_stack;
+    std::string genString(uint32_t length);
+
+    DcmItem* m_measurementItem = nullptr;
+    DcmSequenceOfItems* m_imagingMeasurements = nullptr;
+
+    std::default_random_engine m_random;
 };

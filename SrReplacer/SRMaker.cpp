@@ -1,31 +1,101 @@
 #include "SRMaker.h"
 
 #include <array>
+#include <functional>
 
 #include "DebugLog.h"
 
+SRMaker::SRMaker()
+    : m_random(std::random_device{}())
+{
+
+}
+
 bool SRMaker::loadTemplate(const std::string& fileTemplate)
 {
-    auto dcmTemplate = std::make_unique<DcmFileFormat>();
-    OFCondition status = dcmTemplate->loadFile(fileTemplate.c_str(), EXS_Unknown);
-    if (!status.good())
+    if (!base::loadFile(fileTemplate))
     {
-        PRINT_ERROR("load file", fileTemplate);
         return false;
     }
 
-    m_metaInfo = dcmTemplate->getMetaInfo();
-    m_dataset = dcmTemplate->getDataset();
+    auto imagingMeasurements = searchSequenceInSequence("CONTAINER", "126010",
+        search<DcmSequenceOfItems>(DCM_ContentSequence, m_dataset));
 
-    if (m_metaInfo == nullptr || m_dataset == nullptr)
+    if (imagingMeasurements.empty())
     {
-        PRINT_ERROR("meta info or dataset is null");
         return false;
     }
 
-    m_dcmTemplate = std::move(dcmTemplate);
+    m_imagingMeasurements = imagingMeasurements[0];
+    m_measurementItem = searchItemInSequence("CONTAINER", "125007", m_imagingMeasurements);
 
-    return true;
+    return m_measurementItem != nullptr;
+}
+
+SRMaker::TSequences SRMaker::searchSequenceInSequence(const std::string& valueType, const std::string& codeValue,
+    DcmSequenceOfItems* sequence)
+{
+    TSequences result;
+    auto count = sequence->getNumberOfValues();
+
+    for (uint32_t i = 0; i < count; i++)
+    {
+        auto item = sequence->getItem(i);
+        auto relationship = *getValue<base::TCodeString>(DCM_RelationshipType, item);
+        auto value = *getValue<base::TCodeString>(DCM_ValueType, item);
+        auto conceptNameCode = search<DcmSequenceOfItems>(DCM_ConceptNameCodeSequence, item);
+
+        if ("CONTAINS" == relationship && valueType == value && conceptNameCode != nullptr)
+        {
+            auto code = *getValue<base::TShortString>(DCM_CodeValue, conceptNameCode->getItem(0));
+
+            if (code == codeValue)
+            {
+                auto resultSequence = search<DcmSequenceOfItems>(DCM_ContentSequence, item);
+                if (resultSequence != nullptr)
+                {
+                    result.push_back(resultSequence);
+                }
+            }
+        }
+    }
+
+    return result;
+}
+
+DcmItem* SRMaker::searchItemInSequence(const std::string& valueType, const std::string& codeValue,
+    DcmSequenceOfItems* sequence)
+{
+    auto count = sequence->getNumberOfValues();
+
+    for (uint32_t i = 0; i < count; i++)
+    {
+        auto item = sequence->getItem(i);
+
+        auto value = *getValue<base::TCodeString>(DCM_ValueType, item);
+        auto conceptNameCode = search<DcmSequenceOfItems>(DCM_ConceptNameCodeSequence, item);
+
+        bool sameCodeValue = false;
+        if (!codeValue.empty())
+        {
+            if (conceptNameCode)
+            {
+                auto code = *getValue<base::TShortString>(DCM_CodeValue, conceptNameCode->getItem(0));
+                sameCodeValue = code == codeValue;
+            }
+        }
+        else
+        {
+            sameCodeValue = true;
+        }
+
+        if (valueType == value && sameCodeValue)
+        {
+            return item;
+        }
+    }
+
+    return nullptr;
 }
 
 bool SRMaker::saveFile(const std::string& file)
@@ -39,9 +109,59 @@ bool SRMaker::saveFile(const std::string& file)
     return m_dcmTemplate->saveFile(file.c_str()).good();
 }
 
-bool SRMaker::replacePolyline(const std::vector<float>& polyline)
+bool SRMaker::replacePolyline(const std::unordered_map<std::string, std::vector<float>>& polylines)
 {
-    return replace<DcmFloatingPointSingle>(polyline, DCM_GraphicData, m_dataset);
+    auto item = m_measurementItem;
+    for (const auto& polyline : polylines)
+    {
+        auto group = search<DcmSequenceOfItems>(DCM_ContentSequence, item);
+        auto coronaryRoute = searchSequenceInSequence("NUM", "G-D17C", group);
+        if (!coronaryRoute.empty())
+        {
+            auto uid = searchItemInSequence("UIDREF", "112040", group);
+            if (uid != nullptr)
+            {
+                replace<DcmUniqueIdentifier>(std::string("2.25.") + genString(38), DCM_UID, uid);
+            }
+            
+            auto scoord3d = searchItemInSequence("SCOORD3D", "", coronaryRoute[0]);
+            if (scoord3d == nullptr)
+            {
+                return false;
+            }
+
+            auto coronaryIdentifier = searchItemInSequence("TEXT", "125010", coronaryRoute[0]);
+            if (coronaryIdentifier == nullptr)
+            {
+                return false;
+            }
+
+            if (!replace<DcmFloatingPointSingle>(polyline.second, DCM_GraphicData, scoord3d))
+            {
+                return false;
+            }
+
+            if (!replace<DcmUnlimitedText>(polyline.first, DCM_TextValue, coronaryIdentifier))
+            {
+                return false;
+            }
+        }
+        else
+        {
+            return false;
+        }
+
+        if (item != m_measurementItem)
+        {
+            m_imagingMeasurements->insert(item);
+        }
+
+        item = dynamic_cast<DcmItem*>(m_measurementItem->clone());
+    }
+
+    delete item;
+
+    return true;
 }
 
 bool SRMaker::replaceStudyInstanceUid(const std::string& uid)
@@ -79,40 +199,10 @@ bool SRMaker::replaceInstanceNumber(const std::string& number)
     return replace<DcmIntegerString>(number, DCM_InstanceNumber, m_dataset);
 }
 
-template<typename T>
-T* SRMaker::search(const DcmTagKey& tag, DcmItem* item)
-{
-    if (!m_dcmTemplate || item == nullptr)
-    {
-        PRINT_ERROR("template file not loading or item is null");
-        return nullptr;
-    }
-
-    T dcmValue(tag);
-    auto status = item->search(dcmValue.getTag(), m_stack);
-
-    if (!status.good())
-    {
-        PRINT_ERROR("can't find", tag);
-        return nullptr;
-    }
-
-    auto dcmValuePoint = dynamic_cast<T*>(m_stack.top());
-    if (dcmValuePoint == nullptr)
-    {
-        PRINT_VARIABLE_ERROR(dcmValuePoint, "is null");
-        return nullptr;
-    }
-
-    dcmValuePoint->clear();
-
-    return dcmValuePoint;
-}
-
 template<typename T, typename R>
 bool SRMaker::replace(const R& value, const DcmTagKey& tag, DcmItem* item)
 {
-    auto dcmValue = search<T>(tag, item);
+    auto dcmValue = base::search<T>(tag, item);
     if (dcmValue == nullptr)
     {
         PRINT_VARIABLE_ERROR(value, "is null");
@@ -130,4 +220,18 @@ bool SRMaker::replaceValue(DcmElement* el, const std::vector<float>& value)
 bool SRMaker::replaceValue(DcmElement* el, const std::string& value)
 {
     return el->putString(value.c_str()).good();
+}
+
+std::string SRMaker::genString(uint32_t length)
+{
+    std::vector<char> charSet{ '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' };
+    std::uniform_int_distribution<> dist(0, charSet.size() - 1);
+    auto randChar = [&charSet, &dist, this]() 
+    {
+        return charSet[dist(m_random)];
+    };
+
+    std::string randomString(length, 0);
+    std::generate_n(randomString.begin(), length, randChar);
+    return randomString;
 }
