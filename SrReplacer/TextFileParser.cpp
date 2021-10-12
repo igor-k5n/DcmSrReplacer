@@ -22,18 +22,21 @@ TextFileParser::TPolylines TextFileParser::getPolyline()
 
         std::string polylineString;
         std::getline(m_file, polylineString);
-        auto polylineSplit = split(polylineString, ' ');
-
-        std::transform(std::begin(polylineSplit), std::end(polylineSplit), std::back_inserter(polyline),
-            [](const auto &value)
-            {
-                return static_cast<float>(std::atof(value.c_str()));
-            });
-
-        text = std::to_string(index);
-        if (!text.empty() && !polyline.empty())
+        if (!polylineString.empty())
         {
-            result.emplace(std::move(text), std::move(polyline));
+            auto polylineSplit = split(polylineString, ' ');
+
+            std::transform(std::begin(polylineSplit), std::end(polylineSplit), std::back_inserter(polyline),
+                [](const auto& value)
+                {
+                    return static_cast<float>(std::atof(value.c_str()));
+                });
+
+            text = std::to_string(index);
+            if (!text.empty() && !polyline.empty())
+            {
+                result.emplace(std::move(text), std::move(polyline));
+            }
         }
     }
 
