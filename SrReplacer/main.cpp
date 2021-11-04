@@ -3,23 +3,24 @@
 #include "SRMaker.h"
 #include "TextFileParser.h"
 #include "DcmParser.h"
+#include "JsonParser.h"
 
 int main(int argc, char** argv)
 {
-    if (argc < 5)
+    if (argc < 6)
     {
-        std::cout << "<in dcm template file> <in text file> <in dcm file> <out dcm file>" << std::endl;
+        std::cout << "<in dcm template file> <in text|json file> <in dcm file> <out dcm file> <c|m>" << std::endl;
         return 0;
     }
 
     SRMaker srMaker;
     DcmParser dcmParser;
-    TextFileParser textParser;
 
     std::string inTemplateFile = argv[1];
-    std::string inTextFile = argv[2];
+    std::string inFile = argv[2];
     std::string inDcmFile = argv[3];
     std::string outDcmFile = argv[4];
+    std::string mode = argv[5];
 
     if (!srMaker.loadTemplate(inTemplateFile))
     {
@@ -33,17 +34,45 @@ int main(int argc, char** argv)
         return -1;
     }
 
-    if (!textParser.load(inTextFile))
+    if (mode == "c")
     {
-        PRINT_ERROR("load json file");
-        return -1;
-    }
+        TextFileParser textParser;
 
-    auto polylines = textParser.getPolyline();
-    if (polylines.empty())
+        if (!textParser.load(inFile))
+        {
+            PRINT_ERROR("load text file");
+            return -1;
+        }
+
+        auto polylines = textParser.getPolyline();
+        if (polylines.empty())
+        {
+            PRINT_ERROR("polyline is empty in json");
+            return -1;
+        }
+
+        if (!srMaker.replacePolyline(polylines))
+        {
+            PRINT_ERROR("replace polyline");
+            return -1;
+        }
+    }
+    else
     {
-        PRINT_ERROR("polyline is empty in json");
-        return -1;
+        JsonParser jsonParser;
+
+        if (!jsonParser.loadJson(inFile))
+        {
+            PRINT_ERROR("load json file");
+            return -1;
+        }
+
+        auto measurements = jsonParser.getMeasurments();
+
+        if (!measurements.empty())
+        {
+            srMaker.insertMeasurements(measurements);
+        }
     }
 
     if (!srMaker.replaceStudyInstanceUid(dcmParser.getStudyInstanceUid()))
@@ -82,15 +111,15 @@ int main(int argc, char** argv)
         return -1;
     }
 
-    if (!srMaker.replaceInstanceNumber(dcmParser.getInstanceNumber()))
+    if (!srMaker.replaceSeriesDescription(""))
     {
-        PRINT_ERROR("replace patient name");
+        PRINT_ERROR("replce series description");
         return -1;
     }
 
-    if (!srMaker.replacePolyline(polylines))
+    if (!srMaker.replaceInstanceNumber(dcmParser.getInstanceNumber()))
     {
-        PRINT_ERROR("replace polyline");
+        PRINT_ERROR("replace patient name");
         return -1;
     }
 

@@ -1,0 +1,18 @@
+{"measurementItems": 
+
+[ 
+    {"value": 5.931456613843834, "quantity": {"CodeValue": "110855", "CodingSchemeDesignator": "DCM", "CodeMeaning": "Fractional Occupancy Segmentation"}, 
+        "units": {"CodeValue": "%", "CodingSchemeDesignator": "UCUM", "CodeMeaning": "percent"}, "measurmentDescription": "Percentage of left lung emphysema"}, 
+        
+    {"value": 7.6414726276074765, "quantity": {"CodeValue": "110855", "CodingSchemeDesignator": "DCM", "CodeMeaning": "Fractional Occupancy Segmentation"}, 
+        "units": {"CodeValue": "%", "CodingSchemeDesignator": "UCUM", "CodeMeaning": "percent"}, "measurmentDescription": "Percentage of right lung emphysema"},
+        
+    {"value": 28.159509361301442, "quantity": {"CodeValue": "110855", "CodingSchemeDesignator": "DCM", "CodeMeaning": "Fractional Occupancy Segmentation"}, 
+        "units": {"CodeValue": "%", "CodingSchemeDesignator": "UCUM", "CodeMeaning": "percent"}, "measurmentDescription": "Percentage of left lung ground glass"}, 
+        
+    {"value": 21.730508013125753, "quantity": {"CodeValue": "110855", "CodingSchemeDesignator": "DCM", "CodeMeaning": "Fractional Occupancy Segmentation"}, 
+        "units": {"CodeValue": "%", "CodingSchemeDesignator": "UCUM", "CodeMeaning": "percent"}, "measurmentDescription": "Percentage of right lung ground glass"}
+
+]
+
+}

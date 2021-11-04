@@ -21,54 +21,29 @@ bool JsonParser::loadJson(const std::string& file)
     return true;
 }
 
-JsonParser::TPolyline JsonParser::getPolyline()
+TMeasurements JsonParser::getMeasurments()
 {
-    auto jsonMeasurements = m_root["Measurements"];
-
-    if (jsonMeasurements.size() == 0)
-    {
-        PRINT_ERROR("No measurements");
-        return TPolyline();
-    }
-
-    if (jsonMeasurements.size() > 1)
-    {
-        PRINT_ERROR("Measurements more then 1");
-        return TPolyline();
-    }
-
-    auto jsonMeasurementItems = jsonMeasurements[0]["measurementItems"];
+    TMeasurements measurements;
+    auto jsonMeasurementItems = m_root["measurementItems"];
 
     if (jsonMeasurementItems.size() == 0)
     {
         PRINT_ERROR("No measurement items");
-        return TPolyline();
+        return measurements;
     }
 
-    if (jsonMeasurementItems.size() > 1)
+    for (uint32_t i = 0; i < jsonMeasurementItems.size(); i++)
     {
-        PRINT_ERROR("Measurement items more then 1");
-        return TPolyline();
+        auto &item = jsonMeasurementItems[i];
+
+        Measurement measurement;
+        measurement.Value = item["value"].asDouble();
+        measurement.Description = item["measurmentDescription"].asCString();
+
+        measurements.push_back(measurement);
     }
 
-    std::string polylineString = jsonMeasurementItems[0]["measurementPopulationDescription"].asCString();
-
-    if (polylineString.empty())
-    {
-        PRINT_ERROR("measurement population description string is empty");
-        return TPolyline();
-    }
-
-    auto pointsSplit = split(polylineString, ',');
-    
-    TPolyline result;
-    std::transform(std::begin(pointsSplit), std::end(pointsSplit), std::back_inserter(result),
-        [](auto &&value)
-        {
-            return std::stof(value);
-        });
-
-    return result;
+    return measurements;
 }
 
 std::vector<std::string> JsonParser::split(const std::string& str, char splitChar)

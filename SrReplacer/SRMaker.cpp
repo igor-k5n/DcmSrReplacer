@@ -3,6 +3,7 @@
 #include <array>
 #include <functional>
 
+#include "SrTemplates.h"
 #include "DebugLog.h"
 
 SRMaker::SRMaker()
@@ -27,8 +28,8 @@ bool SRMaker::loadTemplate(const std::string& fileTemplate)
     }
 
     m_imagingMeasurements = imagingMeasurements[0];
-    m_measurementItem = searchItemInSequence("CONTAINER", "125007", m_imagingMeasurements);
 
+    m_measurementItem = searchItemInSequence("CONTAINER", "125007", m_imagingMeasurements);
     return m_measurementItem != nullptr;
 }
 
@@ -98,6 +99,33 @@ DcmItem* SRMaker::searchItemInSequence(const std::string& valueType, const std::
     return nullptr;
 }
 
+void SRMaker::removeItemInSequence(const std::string& valueType, const std::string& codeValue, DcmSequenceOfItems *sequence)
+{
+    auto count = sequence->getNumberOfValues();
+
+    for (uint32_t i = 0; i < count; i++)
+    {
+        auto item = sequence->getItem(i);
+
+        auto value = *getValue<base::TCodeString>(DCM_ValueType, item);
+        auto conceptNameCode = search<DcmSequenceOfItems>(DCM_ConceptNameCodeSequence, item);
+
+        bool sameCodeValue = false;
+
+        if (conceptNameCode)
+        {
+            auto code = *getValue<base::TShortString>(DCM_CodeValue, conceptNameCode->getItem(0));
+            sameCodeValue = code == codeValue;
+        }
+
+        if (valueType == value && sameCodeValue)
+        {
+            sequence->remove(item);
+            break;
+        }
+    }
+}
+
 bool SRMaker::saveFile(const std::string& file)
 {
     if (!m_dcmTemplate)
@@ -109,8 +137,77 @@ bool SRMaker::saveFile(const std::string& file)
     return m_dcmTemplate->saveFile(file.c_str()).good();
 }
 
+bool SRMaker::insertMeasurements(const TMeasurements &measurements)
+{
+    if (m_measurementItem == nullptr)
+    {
+        return false;
+    }
+
+    m_measurementItem->remove(DCM_ContentSequence);
+
+    auto kmtSequnce = new DcmSequenceOfItems(DCM_ContentSequence);
+    auto kmtItem = new DcmItem();
+    auto kmtRelType = new DcmCodeString(DCM_RelationshipType);
+    auto kmtValueType = new DcmCodeString(DCM_ValueType);
+
+    kmtRelType->putString("CONTAINS");
+    kmtValueType->putString("CONTAINER");
+
+    kmtItem->insert(kmtRelType);
+    kmtItem->insert(kmtValueType);
+
+    auto kmtNameSequnce = new DcmSequenceOfItems(DCM_ConceptNameCodeSequence);
+    auto kmtNameItem = new DcmItem();
+    auto kmtCodeValue = new DcmShortString(DCM_CodeValue);
+    auto kmtSchemeDesignator = new DcmShortString(DCM_CodingSchemeDesignator);
+    auto kmtCodeMeaning = new DcmLongString(DCM_CodeMeaning);
+
+    kmtCodeValue->putString("LNGMS");
+    kmtSchemeDesignator->putString("KMT");
+    kmtCodeMeaning->putString("Lungs measurement");
+
+    kmtNameItem->insert(kmtCodeValue);
+    kmtNameItem->insert(kmtSchemeDesignator);
+    kmtNameItem->insert(kmtCodeMeaning);
+
+    kmtNameSequnce->insert(kmtNameItem);
+
+    kmtItem->insert(kmtNameSequnce);
+
+    auto measurementSequnce = new DcmSequenceOfItems(DCM_ContentSequence);
+
+    auto measurementTemplateItem = SrTemplates::createMeasurement();
+
+    for (auto& measurement : measurements)
+    {
+        auto item = dynamic_cast<DcmItem*>(measurementTemplateItem->clone());
+        if (!replace<DcmFloatingPointDouble>(measurement.Value, DCM_FloatingPointValue, item))
+        {
+            return false;
+        }
+
+        if (!replace<DcmUnlimitedText>(measurement.Description, DCM_TextValue, item))
+        {
+            return false;
+        }
+
+        measurementSequnce->insert(item);
+    }
+
+    kmtItem->insert(measurementSequnce);
+
+    kmtSequnce->insert(kmtItem);
+    return m_measurementItem->insert(kmtSequnce).good();
+}
+
 bool SRMaker::replacePolyline(const std::unordered_map<std::string, std::vector<float>>& polylines)
 {
+    if (m_measurementItem == nullptr)
+    {
+        return false;
+    }
+
     auto item = m_measurementItem;
     for (const auto& polyline : polylines)
     {
@@ -194,6 +291,11 @@ bool SRMaker::replaceSeriesNumber(const std::string& number)
     return replace<DcmIntegerString>(number, DCM_SeriesNumber, m_dataset);
 }
 
+bool SRMaker::replaceSeriesDescription(const std::string& description)
+{
+    return replace<DcmLongString>(description, DCM_SeriesDescription, m_dataset);
+}
+
 bool SRMaker::replaceInstanceNumber(const std::string& number)
 {
     return replace<DcmIntegerString>(number, DCM_InstanceNumber, m_dataset);
@@ -220,6 +322,11 @@ bool SRMaker::replaceValue(DcmElement* el, const std::vector<float>& value)
 bool SRMaker::replaceValue(DcmElement* el, const std::string& value)
 {
     return el->putString(value.c_str()).good();
+}
+
+bool SRMaker::replaceValue(DcmElement* el, const double& value)
+{
+    return el->putFloat64(value).good();
 }
 
 std::string SRMaker::genString(uint32_t length)

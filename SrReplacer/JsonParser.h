@@ -5,15 +5,15 @@
 
 #include "json/json.h"
 
+#include "Measurement.h"
+
 class JsonParser
 {
 public:
 
-    using TPolyline = std::vector<float>;
-
     bool loadJson(const std::string& file);
 
-    TPolyline getPolyline();
+    TMeasurements getMeasurments();
 
 private:
     std::vector<std::string> split(const std::string& str, char splitChar);

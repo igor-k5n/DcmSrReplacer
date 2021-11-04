@@ -7,6 +7,7 @@
 #include <random>
 
 #include "DcmFile.h"
+#include "Measurement.h"
 
 class SRMaker : public DcmFile
 {
@@ -19,6 +20,8 @@ public:
     bool loadTemplate(const std::string& fileTemplate);
     bool saveFile(const std::string& file);
 
+    bool insertMeasurements(const TMeasurements&);
+
     bool replacePolyline(const std::unordered_map<std::string, std::vector<float>> &);
     bool replaceStudyInstanceUid(const std::string&);
     bool replaceSeriesInstanceUid(const std::string&);
@@ -26,7 +29,9 @@ public:
     bool replacePatientName(const std::string&);
     bool replaceStudyId(const std::string&);
     bool replaceSeriesNumber(const std::string&);
+    bool replaceSeriesDescription(const std::string&);
     bool replaceInstanceNumber(const std::string&);
+
 private:
 
     using TSequences = std::vector<DcmSequenceOfItems*>;
@@ -34,12 +39,15 @@ private:
     TSequences searchSequenceInSequence(const std::string& valueType, const std::string& codeValue, DcmSequenceOfItems*);
     DcmItem* searchItemInSequence(const std::string& valueType, const std::string& codeValue, DcmSequenceOfItems*);
 
+    void removeItemInSequence(const std::string& valueType, const std::string& codeValue, DcmSequenceOfItems*);
+
     template<typename T, typename R>
     bool replace(const R&, const DcmTagKey& , DcmItem* );
  
     bool replaceValue(DcmElement* el, const std::vector<float>& value);
     bool replaceValue(DcmElement* el, const std::string& value);
     bool replaceValue(DcmElement* el, const uint32_t& value);
+    bool replaceValue(DcmElement* el, const double& value);
 
     std::string genString(uint32_t length);
 
